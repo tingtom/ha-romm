@@ -143,6 +143,11 @@ class RommCoordinator(DataUpdateCoordinator[RommLibrary]):
         self.base_url = base_url.rstrip("/")
         self.headers = headers
         self.session = async_get_clientsession(hass)
+        # RomM writes `last_used_at` on the token for every authenticated
+        # request. Concurrent requests with the same token make MariaDB raise
+        # "Record has changed since last read in table 'client_tokens'", so all
+        # calls are serialised and transient 5xx responses are retried.
+        self._lock = asyncio.Lock()
 
     @staticmethod
     def build_headers(entry: ConfigEntry) -> dict[str, str]:
@@ -159,22 +164,49 @@ class RommCoordinator(DataUpdateCoordinator[RommLibrary]):
     async def _async_get(
         self, path: str, params: dict[str, Any] | None = None
     ) -> Any:
-        """GET a RomM API path and decode the JSON body."""
+        """GET a RomM API path and decode the JSON body.
+
+        Requests are serialised because RomM updates the token row on every
+        call, and concurrent writes make MariaDB abort the transaction.
+        """
         url = f"{self.base_url}{path}"
-        try:
-            async with self.session.get(
-                url, headers=self.headers, params=params, timeout=REQUEST_TIMEOUT
-            ) as response:
-                if response.status in (401, 403):
-                    raise RommAuthError(f"{url} returned {response.status}")
-                response.raise_for_status()
-                return await response.json(content_type=None)
-        except RommAuthError:
-            raise
-        except (aiohttp.ClientError, TimeoutError) as err:
-            raise RommError(f"Error talking to {url}: {err}") from err
-        except ValueError as err:
-            raise RommError(f"Invalid JSON from {url}: {err}") from err
+        attempts = 3
+
+        for attempt in range(1, attempts + 1):
+            try:
+                async with self._lock:
+                    async with self.session.get(
+                        url,
+                        headers=self.headers,
+                        params=params,
+                        timeout=REQUEST_TIMEOUT,
+                    ) as response:
+                        if response.status in (401, 403):
+                            raise RommAuthError(f"{url} returned {response.status}")
+
+                        if response.status >= 500:
+                            body = (await response.text())[:200]
+                            raise RommError(
+                                f"{url} returned {response.status}: {body}"
+                            )
+
+                        response.raise_for_status()
+                        return await response.json(content_type=None)
+            except RommAuthError:
+                raise
+            except (RommError, aiohttp.ClientError, TimeoutError, ValueError) as err:
+                if attempt == attempts:
+                    raise RommError(
+                        f"Error talking to {url}: {err}"
+                    ) from err
+                _LOGGER.debug(
+                    "RomM request to %s failed (attempt %s/%s): %s",
+                    url,
+                    attempt,
+                    attempts,
+                    err,
+                )
+                await asyncio.sleep(attempt)
 
     async def async_validate(self) -> dict[str, Any]:
         """Verify the credentials and return the profile."""
@@ -184,36 +216,32 @@ class RommCoordinator(DataUpdateCoordinator[RommLibrary]):
         """Fetch a fresh snapshot of the library."""
         list_params = dict(LEAN_LIST_PARAMS)
         try:
-            stats, profile, played, added, played_count, finished, completed = (
-                await asyncio.gather(
-                    self._async_get(
-                        "/api/stats", {"include_platform_stats": "true"}
-                    ),
-                    self._async_get("/api/users/me"),
-                    self._async_get(
-                        "/api/roms",
-                        {
-                            **list_params,
-                            "last_played": "true",
-                            "order_by": "last_played",
-                            "order_dir": "desc",
-                            "limit": str(RECENT_LIMIT),
-                        },
-                    ),
-                    self._async_get(
-                        "/api/roms",
-                        {
-                            **list_params,
-                            "order_by": "created_at",
-                            "order_dir": "desc",
-                            "limit": str(RECENT_LIMIT),
-                        },
-                    ),
-                    self._count("/api/roms", {"last_played": "true"}),
-                    self._count("/api/roms", {"statuses": "finished"}),
-                    self._count("/api/roms", {"statuses": "completed_100"}),
-                )
+            stats = await self._async_get(
+                "/api/stats", {"include_platform_stats": "true"}
             )
+            profile = await self._async_get("/api/users/me")
+            played = await self._async_get(
+                "/api/roms",
+                {
+                    **list_params,
+                    "last_played": "true",
+                    "order_by": "last_played",
+                    "order_dir": "desc",
+                    "limit": str(RECENT_LIMIT),
+                },
+            )
+            added = await self._async_get(
+                "/api/roms",
+                {
+                    **list_params,
+                    "order_by": "created_at",
+                    "order_dir": "desc",
+                    "limit": str(RECENT_LIMIT),
+                },
+            )
+            played_count = await self._count("/api/roms", {"last_played": "true"})
+            finished = await self._count("/api/roms", {"statuses": "finished"})
+            completed = await self._count("/api/roms", {"statuses": "completed_100"})
         except RommAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except RommError as err:
