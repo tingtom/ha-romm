@@ -1,3 +1,5 @@
+<p align="center"><img src="custom_components/romm/brand/logo@2x.png" width="420" alt="RomM"></p>
+
 # RomM for Home Assistant
 
 A Home Assistant custom integration for [RomM](https://github.com/rommapp/romm), the
