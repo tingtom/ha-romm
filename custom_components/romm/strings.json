@@ -1,0 +1,102 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to RomM",
+        "description": "Point Home Assistant at your RomM server. Paste a RomM API/client token, or leave it empty and use your RomM username and password.",
+        "data": {
+          "url": "Server URL",
+          "api_key": "API token (optional)",
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate with RomM",
+        "description": "RomM rejected the stored credentials. Provide a new token or password.",
+        "data": {
+          "api_key": "API token (optional)",
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to RomM",
+      "invalid_auth": "RomM rejected those credentials",
+      "missing_auth": "Provide an API token, or both a username and a password",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This RomM server is already configured",
+      "reauth_successful": "Reauthentication was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "RomM options",
+        "data": {
+          "scan_interval": "Update interval"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "games": {
+        "name": "Games"
+      },
+      "platforms": {
+        "name": "Platforms"
+      },
+      "library_size": {
+        "name": "Library size"
+      },
+      "saves": {
+        "name": "Saves"
+      },
+      "states": {
+        "name": "Save states"
+      },
+      "screenshots": {
+        "name": "Screenshots"
+      },
+      "achievements_earned": {
+        "name": "Achievements earned"
+      },
+      "achievements_possible": {
+        "name": "Achievements possible"
+      },
+      "achievement_completion": {
+        "name": "Achievement completion"
+      },
+      "ra_games": {
+        "name": "RetroAchievements games"
+      },
+      "games_played": {
+        "name": "Games played"
+      },
+      "games_finished": {
+        "name": "Games finished"
+      },
+      "games_completed": {
+        "name": "Games 100% completed"
+      },
+      "last_played": {
+        "name": "Last played"
+      },
+      "recently_played": {
+        "name": "Recently played"
+      },
+      "recently_added": {
+        "name": "Recently added"
+      }
+    },
+    "binary_sensor": {
+      "online": {
+        "name": "Server"
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "domain": "romm",
+  "name": "RomM",
+  "codeowners": ["@tingtom"],
+  "config_flow": true,
+  "documentation": "https://github.com/tingtom/ha-romm",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/tingtom/ha-romm/issues",
+  "loggers": ["custom_components.romm"],
+  "requirements": [],
+  "version": "0.1.0"
+}
