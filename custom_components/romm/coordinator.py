@@ -204,7 +204,7 @@ class RommCoordinator(DataUpdateCoordinator[RommLibrary]):
                         "/api/roms",
                         {
                             **list_params,
-                            "order_by": "added",
+                            "order_by": "created_at",
                             "order_dir": "desc",
                             "limit": str(RECENT_LIMIT),
                         },
